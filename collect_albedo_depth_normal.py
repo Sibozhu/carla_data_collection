@@ -16,10 +16,25 @@ except IndexError:
     pass
 import carla
 import random
-import queue
-import pygame
+try:
+    import queue
+except ImportError:
+    import Queue as queue
+
+try:
+    import pygame
+except ImportError:
+    raise RuntimeError('cannot import pygame, make sure pygame package is installed')
+
 from BufferedImageSaver import BufferedImageSaver
-from BufferedLidarSaver import BufferedLidarSaver
+# from BufferedLidarSaver import BufferedLidarSaver
+
+def get_font():
+    fonts = [x for x in pygame.font.get_fonts()]
+    default_font = 'ubuntumono'
+    font = default_font if default_font in fonts else fonts[0]
+    font = pygame.font.match_font(font)
+    return pygame.font.Font(font, 14)
 
 # TIME INTERVAL BETWEEN FRAMES
 TIME_INTER = 1
@@ -29,8 +44,8 @@ STOP_AFTER = 3600 * 10 * TIME_INTER
 
 
 # define parameters
-OTHER_VEH_NUM = 80
-OTHER_PED_NUM = 0
+OTHER_VEH_NUM = 10
+OTHER_PED_NUM = 1
 
 # semantic segmentation sensor parameters
 SENSOR_TICK = 0.0
@@ -48,7 +63,7 @@ FOV = 120
 # lidar sensor parameters
 SENSOR_TYPE_2 = 'Lidar'
 SENSOR_TYPE_2_CARLA = "sensor.lidar.ray_cast"
-CHA_NUM = 64
+CHA_NUM = 32
 RANGE = 10000
 PTS_PER_SEC = 90000
 ROT_FREQ = 10
@@ -68,21 +83,21 @@ SENSOR_TYPE_3_CARLA = 'sensor.camera.depth'
 DEPTH_FOV = 120
 DEPTH_SENSOR_TICK = 0.0
 
-# normal sensor parameters
-SENSOR_TYPE_4 = 'NormalCam'
-SENSOR_TYPE_4_CARLA = 'sensor.camera.normal'
-# NORMAL_IMG_SIZE_HEIGHT = 375
-# NORMAL_IMG_SIZE_WIDTH = 1242
-NORMAL_FOV = 120
-NORMAL_SENSOR_TICK = 0.0
+# # normal sensor parameters
+# SENSOR_TYPE_4 = 'NormalCam'
+# SENSOR_TYPE_4_CARLA = 'sensor.camera.normal'
+# # NORMAL_IMG_SIZE_HEIGHT = 375
+# # NORMAL_IMG_SIZE_WIDTH = 1242
+# NORMAL_FOV = 120
+# NORMAL_SENSOR_TICK = 0.0
 
-# albedo sensor parameters
-SENSOR_TYPE_5 = 'AlbedoCam'
-SENSOR_TYPE_5_CARLA = 'sensor.camera.albedo'
-# ALBEDO_IMG_SIZE_HEIGHT = 375
-# ALBEDO_IMG_SIZE_WIDTH = 1242
-ALBEDO_FOV = 120
-ALBEDO_SENSOR_TICK = 0.0
+# # albedo sensor parameters
+# SENSOR_TYPE_5 = 'AlbedoCam'
+# SENSOR_TYPE_5_CARLA = 'sensor.camera.albedo'
+# # ALBEDO_IMG_SIZE_HEIGHT = 375
+# # ALBEDO_IMG_SIZE_WIDTH = 1242
+# ALBEDO_FOV = 120
+# ALBEDO_SENSOR_TICK = 0.0
 
 # albedo sensor parameters
 SENSOR_TYPE_6 = 'RealCam'
@@ -92,21 +107,21 @@ SENSOR_TYPE_6_CARLA = 'sensor.camera.rgb'
 RGB_FOV = 120
 RGB_SENSOR_TICK = 0.0
 
-# normal to camera frame sensor parameters
-SENSOR_TYPE_7 = 'NormalCamCamFrame'
-SENSOR_TYPE_7_CARLA = 'sensor.camera.normal_cam_frame'
-# ALBEDO_IMG_SIZE_HEIGHT = 375
-# ALBEDO_IMG_SIZE_WIDTH = 1242
-RGB_FOV = 120
-RGB_SENSOR_TICK = 0.0
+# # normal to camera frame sensor parameters
+# SENSOR_TYPE_7 = 'NormalCamCamFrame'
+# SENSOR_TYPE_7_CARLA = 'sensor.camera.normal_cam_frame'
+# # ALBEDO_IMG_SIZE_HEIGHT = 375
+# # ALBEDO_IMG_SIZE_WIDTH = 1242
+# RGB_FOV = 120
+# RGB_SENSOR_TICK = 0.0
 
-# albedo sensor parameters
-SENSOR_TYPE_8 = 'ReflectionCam'
-SENSOR_TYPE_8_CARLA = 'sensor.camera.reflection'
-# ALBEDO_IMG_SIZE_HEIGHT = 375
-# ALBEDO_IMG_SIZE_WIDTH = 1242
-RGB_FOV = 120
-RGB_SENSOR_TICK = 0.0
+# # albedo sensor parameters
+# SENSOR_TYPE_8 = 'ReflectionCam'
+# SENSOR_TYPE_8_CARLA = 'sensor.camera.reflection'
+# # ALBEDO_IMG_SIZE_HEIGHT = 375
+# # ALBEDO_IMG_SIZE_WIDTH = 1242
+# RGB_FOV = 120
+# RGB_SENSOR_TICK = 0.0
 
 buffer_channel = {}
 buffer_channel["CameraSemSeg"] = 1
@@ -122,7 +137,7 @@ buffer_channel["CameraDepth"] = 1
 # image_saver_rear = BufferedImageSaver(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/", BUFFER_SIZE,
 #                                       WINDOW_HEIGHT, WINDOW_WIDTH, buffer_channel[SENSOR_TYPE_1], SENSOR_TYPE_1)
 # lidar_saver = BufferedLidarSaver(SAVE_PATH+NAME_WITH_TIME+"/", BUFFER_SIZE, CHA_NUM, FRM_PTS_NUM, "Lidar")
-image_saver_front = BufferedImageSaver(SAVE_PATH+NAME_WITH_TIME+"/"+"depth/", BUFFER_SIZE,
+image_saver_front = BufferedImageSaver(SAVE_PATH+NAME_WITH_TIME+"/"+"front/", BUFFER_SIZE,
                                        WINDOW_HEIGHT, WINDOW_WIDTH, buffer_channel[SENSOR_TYPE_3], SENSOR_TYPE_3)
 
 
@@ -132,11 +147,11 @@ image_saver_front = BufferedImageSaver(SAVE_PATH+NAME_WITH_TIME+"/"+"depth/", BU
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"depth/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"depth/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/"):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/")
+# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/"):
+#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/"):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/")
+# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/"):
+#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/")
 
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/")
@@ -144,23 +159,23 @@ if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/"):
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/"):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/")
+# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/"):
+#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/"):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/")
+# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/"):
+#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/")
 
-# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"left/"):
-#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"left/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"left/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"left/")
 
-# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"right/"):
-#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"right/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"right/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"right/")
 
-# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/"):
-#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/")
 
-# if not os.path.exists(SAVE_PATH+NAME_WITH_TIME):
-#     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/")
 
 
 def save_images(image_saver, image):
@@ -183,9 +198,10 @@ def main():
     client = carla.Client("127.0.0.1", 2000)
     client.set_timeout(2.0)
 
+    world = client.get_world() #get_world()  ### new
+    print('enabling synchronous mode.')
+
     try:
-        world = client.load_world('Town04') #get_world()  ### new
-        print('enabling synchronous mode.')
         settings = world.get_settings()
         settings.fixed_delta_seconds = 0.1 ### new
         settings.synchronous_mode = True
@@ -210,29 +226,23 @@ def main():
         # lidar_blueprint.set_attribute('lower_fov', str(LOWER_FOV))
         # lidar_blueprint.set_attribute('sensor_tick', str(SENSOR_TICK))
 
-        # sensor_blueprint = blueprints.find(SENSOR_TYPE_1_CARLA)
-        # sensor_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
-        # sensor_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
-        # sensor_blueprint.set_attribute('fov', str(FOV))
-        # sensor_blueprint.set_attribute('sensor_tick', str(SENSOR_TICK))
-
         depth_blueprint = blueprints.find(SENSOR_TYPE_3_CARLA)
         depth_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
         depth_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
         depth_blueprint.set_attribute('fov', str(DEPTH_FOV))
         depth_blueprint.set_attribute('sensor_tick', str(DEPTH_SENSOR_TICK))
 
-        normal_to_world_blueprint = blueprints.find(SENSOR_TYPE_4_CARLA)
-        normal_to_world_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
-        normal_to_world_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
-        normal_to_world_blueprint.set_attribute('fov', str(NORMAL_FOV))
-        normal_to_world_blueprint.set_attribute('sensor_tick', str(NORMAL_SENSOR_TICK))
+        # normal_to_world_blueprint = blueprints.find(SENSOR_TYPE_4_CARLA)
+        # normal_to_world_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
+        # normal_to_world_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
+        # normal_to_world_blueprint.set_attribute('fov', str(NORMAL_FOV))
+        # normal_to_world_blueprint.set_attribute('sensor_tick', str(NORMAL_SENSOR_TICK))
 
-        albedo_blueprint = blueprints.find(SENSOR_TYPE_5_CARLA)
-        albedo_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
-        albedo_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
-        albedo_blueprint.set_attribute('fov', str(ALBEDO_FOV))
-        albedo_blueprint.set_attribute('sensor_tick', str(ALBEDO_SENSOR_TICK))
+        # albedo_blueprint = blueprints.find(SENSOR_TYPE_5_CARLA)
+        # albedo_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
+        # albedo_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
+        # albedo_blueprint.set_attribute('fov', str(ALBEDO_FOV))
+        # albedo_blueprint.set_attribute('sensor_tick', str(ALBEDO_SENSOR_TICK))
 
         rgb_blueprint = blueprints.find(SENSOR_TYPE_6_CARLA)
         rgb_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
@@ -240,19 +250,21 @@ def main():
         rgb_blueprint.set_attribute('fov', str(RGB_FOV))
         rgb_blueprint.set_attribute('sensor_tick', str(RGB_SENSOR_TICK))
 
-        normal_to_cam_blueprint = blueprints.find(SENSOR_TYPE_7_CARLA)
-        normal_to_cam_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
-        normal_to_cam_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
-        normal_to_cam_blueprint.set_attribute('fov', str(RGB_FOV))
-        normal_to_cam_blueprint.set_attribute('sensor_tick', str(RGB_SENSOR_TICK))
+        # normal_to_cam_blueprint = blueprints.find(SENSOR_TYPE_7_CARLA)
+        # normal_to_cam_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
+        # normal_to_cam_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
+        # normal_to_cam_blueprint.set_attribute('fov', str(RGB_FOV))
+        # normal_to_cam_blueprint.set_attribute('sensor_tick', str(RGB_SENSOR_TICK))
 
-        reflection_blueprint = blueprints.find(SENSOR_TYPE_8_CARLA)
-        reflection_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
-        reflection_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
-        reflection_blueprint.set_attribute('fov', str(RGB_FOV))
-        reflection_blueprint.set_attribute('sensor_tick', str(RGB_SENSOR_TICK))
+        # reflection_blueprint = blueprints.find(SENSOR_TYPE_8_CARLA)
+        # reflection_blueprint.set_attribute('image_size_x', str(WINDOW_WIDTH))
+        # reflection_blueprint.set_attribute('image_size_y', str(WINDOW_HEIGHT))
+        # reflection_blueprint.set_attribute('fov', str(RGB_FOV))
+        # reflection_blueprint.set_attribute('sensor_tick', str(RGB_SENSOR_TICK))
 
-        spawn_points = world.get_map().get_spawn_points()
+        m = world.get_map()
+        spawn_points = m.get_spawn_points()
+
         random.shuffle(spawn_points)
 
         # test whether vehicle number exceeds spawn points number
@@ -287,72 +299,80 @@ def main():
 
         # create my own car
         my_car = world.spawn_actor(random.choice(vehicle_blueprint), random.choice(spawn_points))
-        print(my_car.attributes)
+        waypoint = m.get_waypoint(random.choice(spawn_points).location)
+        print(f'car attributes: {my_car.attributes}')
         my_car.set_autopilot(1)
 
-        transform = carla.Transform(carla.Location(x=0.8, z=1.65))
-        transform_front = carla.Transform(carla.Location(x=0.8, z=1.65))
+        transform = carla.Transform(carla.Location(x=1.6, z=1.7))
+        transform_front = carla.Transform(carla.Location(x=1.6, z=1.7))
 
         # create sensors and attach them to my_car
         depth_front = world.spawn_actor(depth_blueprint, transform_front, attach_to=my_car)
-        print(depth_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        print(f'depth front attributes: {depth_front.attributes}')
+        depth_front.listen(lambda image: save_images(image_saver_front, image))
 
-        normal_to_world_front = world.spawn_actor(normal_to_world_blueprint, transform_front, attach_to=my_car)
-        print(normal_to_world_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        # normal_to_world_front = world.spawn_actor(normal_to_world_blueprint, transform_front, attach_to=my_car)
+        # print(normal_to_world_front.attributes)
+        # # semantic_front.listen(lambda image: save_images(image_saver_front, image))
 
-        albedo_front = world.spawn_actor(albedo_blueprint, transform_front, attach_to=my_car)
-        print(albedo_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        # albedo_front = world.spawn_actor(albedo_blueprint, transform_front, attach_to=my_car)
+        # print(albedo_front.attributes)
+        # # semantic_front.listen(lambda image: save_images(image_saver_front, image))
 
         semantic_front = world.spawn_actor(sensor_blueprint, transform_front, attach_to=my_car)
-        print(semantic_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        print(f'semantic front attributes: {semantic_front.attributes}')
+        semantic_front.listen(lambda image: save_images(image_saver_front, image))
 
         rgb_front = world.spawn_actor(rgb_blueprint, transform_front, attach_to=my_car)
-        print(rgb_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        print(f'rgb front attributes: {rgb_front.attributes}')
+        rgb_front.listen(lambda image: save_images(image_saver_front, image))
 
-        normal_to_cam_front = world.spawn_actor(normal_to_cam_blueprint, transform_front, attach_to=my_car)
-        print(normal_to_cam_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        # normal_to_cam_front = world.spawn_actor(normal_to_cam_blueprint, transform_front, attach_to=my_car)
+        # print(normal_to_cam_front.attributes)
+        # # semantic_front.listen(lambda image: save_images(image_saver_front, image))
 
-        reflection_front = world.spawn_actor(reflection_blueprint, transform_front, attach_to=my_car)
-        print(reflection_front.attributes)
-        # semantic_front.listen(lambda image: save_images(image_saver_front, image))
+        # reflection_front = world.spawn_actor(reflection_blueprint, transform_front, attach_to=my_car)
+        # print(reflection_front.attributes)
+        # # semantic_front.listen(lambda image: save_images(image_saver_front, image))
 
         # Make sync queue for sensor data.
         image_queue_1 = queue.Queue()
-        image_queue_2 = queue.Queue()
-        image_queue_3 = queue.Queue()
+        # image_queue_2 = queue.Queue()
+        # image_queue_3 = queue.Queue()
         image_queue_4 = queue.Queue()
         image_queue_5 = queue.Queue()
-        image_queue_6 = queue.Queue()
-        image_queue_7 = queue.Queue()
+        # image_queue_6 = queue.Queue()
+        # image_queue_7 = queue.Queue()
 
         depth_front.listen(image_queue_1.put)
-        normal_to_world_front.listen(image_queue_2.put)
-        albedo_front.listen(image_queue_3.put)
+        # normal_to_world_front.listen(image_queue_2.put)
+        # albedo_front.listen(image_queue_3.put)
         semantic_front.listen(image_queue_4.put)
         rgb_front.listen(image_queue_5.put)
-        normal_to_cam_front.listen(image_queue_6.put)
-        reflection_front.listen(image_queue_7.put)
+        # normal_to_cam_front.listen(image_queue_6.put)
+        # reflection_front.listen(image_queue_7.put)
 
         actor_list.append(depth_front)
-        actor_list.append(normal_to_world_front)
-        actor_list.append(albedo_front)
+        # actor_list.append(normal_to_world_front)
+        # actor_list.append(albedo_front)
         actor_list.append(semantic_front)
         actor_list.append(rgb_front)
-        actor_list.append(normal_to_cam_front)
-        actor_list.append(reflection_front)
+        # camera_semseg = world.spawn_actor(
+        #     blueprint_library.find('sensor.camera.semantic_segmentation'),
+        #     carla.Transform(carla.Location(x=1.6, z=1.7)),#carla.Transform(carla.Location(x=-5.5, z=2.8), carla.Rotation(pitch=-15)),
+        #     attach_to=vehicle)
+        # actor_list.append(camera_semseg)
+        # actor_list.append(normal_to_cam_front)
+        # actor_list.append(reflection_front)
 
         # actor_list.append(sensor_2)
         actor_list.append(my_car)
 
+        pygame.init()
         display = pygame.display.set_mode(
             (800, 600),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
+        font = get_font()
 
         clock = pygame.time.Clock()
         # begin to record time for stopping
@@ -362,9 +382,14 @@ def main():
             world.tick()
             clock.tick()
             counter += 1
+            print(f'counter: {counter}')
+            # print(f'TIME_INTER: {TIME_INTER}')
             
+            # Choose the next waypoint and update the car location.
+            waypoint = random.choice(waypoint.next(1.5))
+            my_car.set_transform(waypoint.transform)
 
-            ts = world.wait_for_tick()
+            # ts = world.wait_for_tick()
 
             # image = image_queue.get()
             # image.save_to_disk(
@@ -381,19 +406,18 @@ def main():
             # image = image_queue.get()
             # image.save_to_disk(
             #     SAVE_PATH+NAME_WITH_TIME+"/"+"depth/%06d.png" % image.frame_number)
-            if (counter % (TIME_INTER * 10) == 0):
-                
+            if (counter % (TIME_INTER * 2) == 0):                
                 image = image_queue_1.get()
                 image.save_to_disk(
                     SAVE_PATH+NAME_WITH_TIME+"/"+"depth/%06d.png" % image.frame_number)
 
-                image = image_queue_2.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/%06d.png" % image.frame_number)
+                # image = image_queue_2.get()
+                # image.save_to_disk(
+                #     SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_world/%06d.png" % image.frame_number)
 
-                image = image_queue_3.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/%06d.png" % image.frame_number)
+                # image = image_queue_3.get()
+                # image.save_to_disk(
+                #     SAVE_PATH+NAME_WITH_TIME+"/"+"albedo/%06d.png" % image.frame_number)
 
                 image = image_queue_4.get()
                 image.save_to_disk(
@@ -403,35 +427,37 @@ def main():
                 image.save_to_disk(
                     SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/%06d.png" % image.frame_number)
 
-                image = image_queue_6.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/%06d.png" % image.frame_number)
+                # image = image_queue_6.get()
+                # image.save_to_disk(
+                    # SAVE_PATH+NAME_WITH_TIME+"/"+"normal_to_cam/%06d.png" % image.frame_number)
 
-                image = image_queue_7.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/%06d.png" % image.frame_number)
+                # image = image_queue_7.get()
+                # image.save_to_disk(
+                #     SAVE_PATH+NAME_WITH_TIME+"/"+"reflection/%06d.png" % image.frame_number)
                 
                 
                 # depth_front.listen(lambda image: )
                 # normal_front.listen(lambda image: )
                 # albedo_front.listen(lambda image: )
                 # rgb_front.listen(lambda image: )
-            elif counter % (TIME_INTER * 10) == (TIME_INTER * 10 - 1):    
-                for i in range(TIME_INTER * 10 - 1):
+                
+            elif counter % (TIME_INTER * 2) == (TIME_INTER * 2 - 1):   
+                for i in range(TIME_INTER * 2 - 1):
                         image_queue_1.get()
-                        image_queue_2.get()
-                        image_queue_3.get()
+                        # image_queue_2.get()
+                        # image_queue_3.get()
                         image_queue_4.get()
                         image_queue_5.get()
-                        image_queue_6.get()
-                        image_queue_7.get()
-            print(counter)
+                        # image_queue_6.get()
+                        # image_queue_7.get()
+            # print(counter)
             # if((stop_time - start_time)%1000 == 0):
             #     print("already run {0} seconds.\n".format((stop_time-start_time)/1000))
             if(counter >= STOP_AFTER):
                 break
-
+    
     finally:
+
         #client.apply_batch([carla.command.DestroyActor(x) for x in actor_list])
         for actor in actor_list:
             id = actor.id
