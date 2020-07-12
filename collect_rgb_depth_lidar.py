@@ -29,6 +29,24 @@ try:
 except ImportError:
     raise RuntimeError('cannot import pygame, make sure pygame package is installed')
 
+def draw_image(surface, image, blend=False):
+    array = np.frombuffer(image.raw_data, dtype=np.dtype("uint8"))
+    array = np.reshape(array, (image.height, image.width, 4))
+    array = array[:, :, :3]
+    array = array[:, :, ::-1]
+    image_surface = pygame.surfarray.make_surface(array.swapaxes(0, 1))
+    if blend:
+        image_surface.set_alpha(100)
+    surface.blit(image_surface, (0, 0))
+
+def should_quit():
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            return True
+        elif event.type == pygame.KEYUP:
+            if event.key == pygame.K_ESCAPE:
+                return True
+    return False
 
 def get_font():
     fonts = [x for x in pygame.font.get_fonts()]
@@ -45,8 +63,8 @@ STOP_AFTER = 3600 * 10 * TIME_INTER
 
 
 # define parameters
-OTHER_VEH_NUM = 10
-OTHER_PED_NUM = 1
+OTHER_VEH_NUM = 0
+OTHER_PED_NUM = 0
 
 # semantic segmentation sensor parameters
 SENSOR_TICK = 0.0
@@ -131,6 +149,7 @@ def main():
 
         blueprints = world.get_blueprint_library()
         vehicle_blueprint = blueprints.filter("vehicle.*")
+        mycar_blueprint = blueprints.filter("vehicle.audi*")
         pedestrain_blueprint = blueprints.filter("walker.*")
 
         camera_seg_blueprint = blueprints.find(SENSOR_TYPE_1_CARLA)
@@ -196,7 +215,7 @@ def main():
             actor_list.append(ped)
 
         # create my own car
-        my_car = world.spawn_actor(random.choice(vehicle_blueprint), random.choice(spawn_points))
+        my_car = world.spawn_actor(random.choice(mycar_blueprint), random.choice(spawn_points))
         waypoint = m.get_waypoint(random.choice(spawn_points).location)
         print(f'car attributes: {my_car.attributes}')
         my_car.set_autopilot(1)
@@ -237,7 +256,7 @@ def main():
 
         pygame.init()
         display = pygame.display.set_mode(
-            (800, 600),
+            (WINDOW_WIDTH, WINDOW_HEIGHT),
             pygame.HWSURFACE | pygame.DOUBLEBUF)
         font = get_font()
 
@@ -246,6 +265,8 @@ def main():
         counter = 0
 
         while True:
+            if should_quit():
+                return
             world.tick()
             clock.tick()
             counter += 1
@@ -257,35 +278,33 @@ def main():
 
             # ts = world.wait_for_tick()
 
-            if (counter % (TIME_INTER * 2) == 0):                
-                image = image_queue_1.get()
-                image.convert(carla.ColorConverter.LogarithmicDepth)
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"depth/%06d.png" % image.frame_number)
+            image_depth = image_queue_1.get()
+            image_depth.convert(carla.ColorConverter.LogarithmicDepth)
+            image_depth.save_to_disk(
+                SAVE_PATH+NAME_WITH_TIME+"/"+"depth/%06d.png" % image_depth.frame_number)
 
-                image = image_queue_2.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/%06d.ply" % image.frame_number)
+            image_lidar = image_queue_2.get()
+            image_lidar.save_to_disk(
+                SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/%06d.ply" % image_lidar.frame_number)
 
-                image = image_queue_4.get()
-                image.convert(carla.ColorConverter.CityScapesPalette)
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/%06d.png" % image.frame_number)
+            image_semantic = image_queue_4.get()
+            image_semantic.convert(carla.ColorConverter.CityScapesPalette)
+            image_semantic.save_to_disk(
+                SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/%06d.png" % image_semantic.frame_number)
 
-                image = image_queue_5.get()
-                image.save_to_disk(
-                    SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/%06d.png" % image.frame_number)
-
-                
-            elif counter % (TIME_INTER * 2) == (TIME_INTER * 2 - 1):   
-                for i in range(TIME_INTER * 2 - 1):
-                        image_queue_1.get()
-                        image_queue_2.get()
-                        image_queue_4.get()
-                        image_queue_5.get()
+            image_rgb = image_queue_5.get()
+            image_rgb.save_to_disk(
+                SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/%06d.png" % image_rgb.frame_number)
 
             if(counter >= STOP_AFTER):
                 break
+            # Draw the display.
+            draw_image(display, image_rgb)
+            draw_image(display, image_semantic, blend=True)
+            display.blit(
+                font.render('% 5d FPS (real)' % clock.get_fps(), True, (255, 255, 255)),
+                (8, 10))
+            pygame.display.flip()
     
     finally:
 
