@@ -102,12 +102,6 @@ SENSOR_TYPE_6_CARLA = 'sensor.camera.rgb'
 RGB_FOV = 120
 RGB_SENSOR_TICK = 0.0
 
-buffer_channel = {}
-buffer_channel["CameraSemSeg"] = 1
-buffer_channel["CameraRGB"] = 3
-buffer_channel["CameraDepth"] = 1
-
-
 # create folders for storing data
 
 
