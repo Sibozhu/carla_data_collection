@@ -3,6 +3,8 @@ import glob
 import os
 import sys
 from PIL import Image as PImage
+import math
+from math import cos, sin
 import numpy as np
 import io
 import datetime
@@ -18,6 +20,10 @@ try:
 except IndexError:
     pass
 import carla
+
+from carla import Transform, Rotation
+
+
 import random
 try:
     import queue
@@ -48,12 +54,19 @@ def should_quit():
                 return True
     return False
 
+def degrees_to_radians(degrees):
+    return degrees * math.pi / 180
+
 def get_font():
     fonts = [x for x in pygame.font.get_fonts()]
     default_font = 'ubuntumono'
     font = default_font if default_font in fonts else fonts[0]
     font = pygame.font.match_font(font)
     return pygame.font.Font(font, 14)
+
+def write_flat(f, name, arr):
+    f.write("{}: {}\n".format(name, ' '.join(
+        map(str, arr.flatten('C').squeeze()))))
 
 # TIME INTERVAL BETWEEN FRAMES
 TIME_INTER = 1
@@ -123,8 +136,11 @@ if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"right/"):
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/")
+
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/")
 
 
 def main():
@@ -214,15 +230,15 @@ def main():
         print(f'car attributes: {my_car.attributes}')
         my_car.set_autopilot(1)
 
-        transform = carla.Transform(carla.Location(x=1.6, z=1.7))
-        transform_front = carla.Transform(carla.Location(x=1.6, z=1.7))
+        transform_lidar = carla.Transform(carla.Location(x=1.6, y=0, z=1.7))
+        transform_front = carla.Transform(carla.Location(x=1.6, y=0, z=1.7))
 
         # create sensors and attach them to my_car
         depth_front = world.spawn_actor(depth_blueprint, transform_front, attach_to=my_car)
         print(f'depth front attributes: {depth_front.attributes}')
 
         # create sensors and attach them to my_car
-        lidar_top = world.spawn_actor(lidar_blueprint, transform, attach_to=my_car)
+        lidar_top = world.spawn_actor(lidar_blueprint, transform_lidar, attach_to=my_car)
         print(f'lidar top attributes: {lidar_top.attributes}')
 
         semantic_front = world.spawn_actor(camera_seg_blueprint, transform_front, attach_to=my_car)
@@ -243,6 +259,7 @@ def main():
         rgb_front.listen(image_queue_5.put)
 
         actor_list.append(depth_front)
+        actor_list.append(lidar_top)
         actor_list.append(semantic_front)
         actor_list.append(rgb_front)
 
@@ -265,7 +282,7 @@ def main():
             clock.tick()
             counter += 1
             print(f'Frame: {counter}')
-            
+
             # Choose the next waypoint and update the car location.
             waypoint = random.choice(waypoint.next(1.5))
             my_car.set_transform(waypoint.transform)
@@ -279,7 +296,44 @@ def main():
 
             image_lidar = image_queue_2.get()
             image_lidar.save_to_disk(
-                SAVE_PATH+NAME_WITH_TIME+"/"+"Lidar/%06d.ply" % image_lidar.frame_number)
+                SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/%06d.ply" % image_lidar.frame_number)
+
+            # print('==========')
+            # print(f'car transform: {my_car.get_transform()}')
+            # print(f'camera transform: {actor_list[0].get_transform()}')
+            # print(f'lidar transform: {actor_list[1].get_transform()}')
+
+            # Camera Instrinsic Matric
+            CALIBRATION_PATH = SAVE_PATH+NAME_WITH_TIME+'/calib/{0:06}.txt'
+            calib_filename = CALIBRATION_PATH.format(image_lidar.frame_number)
+
+            P0 = np.identity(3)
+            P0[0,2] = WINDOW_WIDTH / 2
+            P0[1,2] = WINDOW_HEIGHT / 2
+            f = WINDOW_WIDTH / \
+                (2.0 * math.tan(90.0 * math.pi / 360.0))
+            P0[0, 0] = P0[1, 1] = f
+
+            P0 = np.column_stack((P0, np.array([0, 0, 0])))
+            P0 = np.ravel(P0, order='C')
+            R0 = np.identity(3)
+
+            # LiDAR to Camera transformation
+            Rotation = np.array([[0, -1, 0],
+                                    [0, 0, -1],
+                                    [1, 0, 0]])
+            # Add translation vector from velo to camera. This is 0 because the position of camera and lidar is equal in our configuration.
+            # Translation = np.column_stack((TR_velodyne, np.array([0, 0, 0])))
+            Translation = np.array([0, 0, 0])
+
+            with open(calib_filename, 'w') as f:
+                write_flat(f, "R", Rotation)
+                write_flat(f, "T", Translation)
+                write_flat(f, "P_rect_02" , P0)
+                write_flat(f, "R_rect_02", R0)
+
+            #######################################
+
 
             image_semantic = image_queue_4.get()
             image_semantic.convert(carla.ColorConverter.CityScapesPalette)
@@ -294,7 +348,6 @@ def main():
                 break
             # Draw the display.
             draw_image(display, image_rgb)
-            draw_image(display, image_semantic, blend=True)
             display.blit(
                 font.render('% 5d FPS (real)' % clock.get_fps(), True, (255, 255, 255)),
                 (8, 10))
