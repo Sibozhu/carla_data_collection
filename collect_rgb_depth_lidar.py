@@ -291,10 +291,12 @@ def main():
         Translation = np.array([0, 0, 0])
 
         with open(extrinsic_filename, 'w') as f:
+            f.write("calib_time:" + NAME_WITH_TIME + "\n")
             write_flat(f, "R", Rotation)
             write_flat(f, "T", Translation)
 
         with open(instrinsic_filename, 'w') as f:
+            f.write("calib_time:" + NAME_WITH_TIME + "\n")
             write_flat(f, "P_rect_02" , P0)
             write_flat(f, "R_rect_02", R0)
 
