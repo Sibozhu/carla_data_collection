@@ -2,7 +2,7 @@
 
 ## Usage
 
-The code is for CARLA version 0.9.4. It needs to be modified to adapt to other versions of CARLA.
+The code is for CARLA version 0.9.9.4. It needs to be modified to adapt to other versions of CARLA.
 
 ### Data Generation
 
