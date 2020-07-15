@@ -6,7 +6,7 @@ The code is for CARLA version 0.9.9.4. It needs to be modified to adapt to other
 
 ### Data Generation
 
-2. put "collect_rgb_depth_lidar.py" to "carla_root_folder/PythonAPI/examples" and run it using terminal. 
+2. put "collect_rgb_depth_lidar.py" to "~/carla/PythonAPI/examples" and run it using terminal. 
 
 3. data will be created in folder "carla_root_folder/PythonAPI/examples/images"
 
