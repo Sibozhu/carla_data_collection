@@ -7,6 +7,7 @@ import math
 from math import cos, sin
 import numpy as np
 import io
+import cv2
 import datetime
 
 # to visualize ply 3d point cloud
@@ -68,11 +69,9 @@ def write_flat(f, name, arr):
     f.write("{}: {}\n".format(name, ' '.join(
         map(str, arr.flatten('C').squeeze()))))
 
-# TIME INTERVAL BETWEEN FRAMES
-TIME_INTER = 1
 
 # STOP AFTER HOW MANY MILLISECONDS
-STOP_AFTER = 3600 * 10 * TIME_INTER
+STOP_AFTER = 3600 * 10 
 
 
 # define parameters
@@ -136,8 +135,8 @@ if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"right/"):
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"rear/")
 
-if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/"):
-    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/")
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"velodyne_points/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"velodyne_points/")
 
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/")
@@ -262,8 +261,41 @@ def main():
         actor_list.append(lidar_top)
         actor_list.append(semantic_front)
         actor_list.append(rgb_front)
-
         actor_list.append(my_car)
+
+        # Camera Instrinsic Matric
+        instrinsic_filename = SAVE_PATH+NAME_WITH_TIME+'/calib/calib_cam_to_cam.txt'
+        extrinsic_filename = SAVE_PATH+NAME_WITH_TIME+'/calib/calib_velo_to_cam.txt'
+
+        P0 = np.identity(3)
+        P0[0,2] = WINDOW_WIDTH / 2
+        P0[1,2] = WINDOW_HEIGHT / 2
+        f = WINDOW_WIDTH / \
+            (2.0 * math.tan(90.0 * math.pi / 360.0))
+        P0[0, 0] = P0[1, 1] = f
+
+        P0 = np.column_stack((P0, np.array([0, 0, 0])))
+        P0 = np.ravel(P0, order='C')
+        R0 = np.identity(3)
+
+        # LiDAR to Camera transformation
+        Rotation = np.array([[0, -1, 0],
+                                [0, 0, -1],
+                                [1, 0, 0]])
+        # Add translation vector from velo to camera. This is 0 because the position of camera and lidar is equal in our configuration.
+        # Translation = np.column_stack((TR_velodyne, np.array([0, 0, 0])))
+        Translation = np.array([0, 0, 0])
+
+        with open(extrinsic_filename, 'w') as f:
+            write_flat(f, "R", Rotation)
+            write_flat(f, "T", Translation)
+
+        with open(instrinsic_filename, 'w') as f:
+            write_flat(f, "P_rect_02" , P0)
+            write_flat(f, "R_rect_02", R0)
+
+        #######################################
+
 
         pygame.init()
         display = pygame.display.set_mode(
@@ -296,46 +328,21 @@ def main():
 
             image_lidar = image_queue_2.get()
             image_lidar.save_to_disk(
-                SAVE_PATH+NAME_WITH_TIME+"/"+"LiDAR/%06d.ply" % image_lidar.frame_number)
-
-            # print('==========')
-            # print(f'car transform: {my_car.get_transform()}')
-            # print(f'camera transform: {actor_list[0].get_transform()}')
-            # print(f'lidar transform: {actor_list[1].get_transform()}')
-
-            # Camera Instrinsic Matric
-            CALIBRATION_PATH = SAVE_PATH+NAME_WITH_TIME+'/calib/{0:06}.txt'
-            calib_filename = CALIBRATION_PATH.format(image_lidar.frame_number)
-
-            P0 = np.identity(3)
-            P0[0,2] = WINDOW_WIDTH / 2
-            P0[1,2] = WINDOW_HEIGHT / 2
-            f = WINDOW_WIDTH / \
-                (2.0 * math.tan(90.0 * math.pi / 360.0))
-            P0[0, 0] = P0[1, 1] = f
-
-            P0 = np.column_stack((P0, np.array([0, 0, 0])))
-            P0 = np.ravel(P0, order='C')
-            R0 = np.identity(3)
-
-            # LiDAR to Camera transformation
-            Rotation = np.array([[0, -1, 0],
-                                    [0, 0, -1],
-                                    [1, 0, 0]])
-            # Add translation vector from velo to camera. This is 0 because the position of camera and lidar is equal in our configuration.
-            # Translation = np.column_stack((TR_velodyne, np.array([0, 0, 0])))
-            Translation = np.array([0, 0, 0])
-
-            with open(calib_filename, 'w') as f:
-                write_flat(f, "R", Rotation)
-                write_flat(f, "T", Translation)
-                write_flat(f, "P_rect_02" , P0)
-                write_flat(f, "R_rect_02", R0)
-
-            #######################################
-
+                SAVE_PATH+NAME_WITH_TIME+"/"+"velodyne_points/%06d.ply" % image_lidar.frame_number)
 
             image_semantic = image_queue_4.get()
+            image_semantic.save_to_disk(
+                SAVE_PATH+NAME_WITH_TIME+"/"+"raw_semantic/%06d.png" % image_semantic.frame_number)
+            # test = cv2.imread(SAVE_PATH+NAME_WITH_TIME+"/"+"raw_semantic/%06d.png" % image_semantic.frame_number)
+            # print(test)
+            # flag_list = []
+            # for i in test:
+            #     for j in test[i]:
+            #         flag_list.append(test[i][j][-1])
+            # print(flag_list)
+            # print(len(flag_list))
+
+            # fuck
             image_semantic.convert(carla.ColorConverter.CityScapesPalette)
             image_semantic.save_to_disk(
                 SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/%06d.png" % image_semantic.frame_number)
@@ -343,6 +350,7 @@ def main():
             image_rgb = image_queue_5.get()
             image_rgb.save_to_disk(
                 SAVE_PATH+NAME_WITH_TIME+"/"+"rgb/%06d.png" % image_rgb.frame_number)
+
 
             if(counter >= STOP_AFTER):
                 break
