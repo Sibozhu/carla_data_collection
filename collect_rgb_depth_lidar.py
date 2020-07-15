@@ -141,6 +141,9 @@ if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"velodyne_points/"):
 if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/"):
     os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"calib/")
 
+if not os.path.exists(SAVE_PATH+NAME_WITH_TIME+"/"+"processed_2d_seg/"):
+    os.makedirs(SAVE_PATH+NAME_WITH_TIME+"/"+"processed_2d_seg/")
+
 
 def main():
     actor_list = []
@@ -224,8 +227,9 @@ def main():
             actor_list.append(ped)
 
         # create my own car
-        my_car = world.spawn_actor(random.choice(mycar_blueprint), random.choice(spawn_points))
-        waypoint = m.get_waypoint(random.choice(spawn_points).location)
+        init_location = random.choice(spawn_points)
+        my_car = world.spawn_actor(random.choice(mycar_blueprint), init_location)
+        waypoint = m.get_waypoint(init_location.location)
         print(f'car attributes: {my_car.attributes}')
         my_car.set_autopilot(1)
 
@@ -333,16 +337,20 @@ def main():
             image_semantic = image_queue_4.get()
             image_semantic.save_to_disk(
                 SAVE_PATH+NAME_WITH_TIME+"/"+"raw_semantic/%06d.png" % image_semantic.frame_number)
-            # test = cv2.imread(SAVE_PATH+NAME_WITH_TIME+"/"+"raw_semantic/%06d.png" % image_semantic.frame_number)
-            # print(test)
-            # flag_list = []
-            # for i in test:
-            #     for j in test[i]:
-            #         flag_list.append(test[i][j][-1])
-            # print(flag_list)
-            # print(len(flag_list))
 
-            # fuck
+            # convert segmentation label to bin file
+            seg_matrix = cv2.imread(SAVE_PATH+NAME_WITH_TIME+"/"+"raw_semantic/%06d.png" % image_semantic.frame_number)
+
+            seg_matrix = np.delete(seg_matrix,1,2)
+            seg_matrix = np.delete(seg_matrix,0,2)
+            seg_matrix = seg_matrix.squeeze()
+            final_list = seg_matrix.flatten()
+
+            f = open(SAVE_PATH+NAME_WITH_TIME+"/"+"processed_2d_seg/%06d.bin" % image_semantic.frame_number, 'w+b')
+            f.write(final_list)
+            f.close()
+            ##########################################
+
             image_semantic.convert(carla.ColorConverter.CityScapesPalette)
             image_semantic.save_to_disk(
                 SAVE_PATH+NAME_WITH_TIME+"/"+"semantic/%06d.png" % image_semantic.frame_number)
